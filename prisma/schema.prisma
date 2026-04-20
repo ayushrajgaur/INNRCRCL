@@ -1,0 +1,121 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  isVerified    Boolean        @default(false)
+  anonHandle    String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  matchQueue    MatchQueue?
+  chatAsUserA   ChatSession[]  @relation("ChatSessionUserA")
+  chatAsUserB   ChatSession[]  @relation("ChatSessionUserB")
+  messages      Message[]
+  replies       Reply[]
+  postReactions PostReaction[]
+
+  @@index([email])
+}
+
+model EmailVerificationOTP {
+  id        String    @id @default(cuid())
+  email     String
+  otp       String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+model MatchQueue {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  socketId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+model ChatSession {
+  id        String    @id @default(cuid())
+  userAId   String
+  userBId   String
+  isActive  Boolean   @default(true)
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userA     User      @relation("ChatSessionUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User      @relation("ChatSessionUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userAId])
+  @@index([userBId])
+  @@index([isActive])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  sessionId String
+  senderId  String
+  content   String
+  createdAt DateTime    @default(now())
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender    User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model Post {
+  id         String         @id
+  anonHandle String
+  content    String
+  replies    Reply[]
+  reactions  PostReaction[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+model Reply {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PostReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  type      String   @default("like")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
