@@ -8,6 +8,16 @@ interface Props {
   email: string;
 }
 
+interface FeedPost {
+  id: string;
+  handle: string;
+  content: string;
+  createdAt: string;
+  likes: number;
+  replies: number;
+  liked: boolean;
+}
+
 interface Reply {
   id: string;
   anonHandle: string;
@@ -15,50 +25,36 @@ interface Reply {
   createdAt: string;
 }
 
-const PLACEHOLDER_POSTS = [
-  {
-    id: "1",
-    handle: "cipher#2047",
-    time: "2m ago",
-    content: "The canteen food has genuinely gotten worse this semester. Change my mind.",
-    likes: 24,
-    replies: 7,
-  },
-  {
-    id: "2",
-    handle: "nova#8831",
-    time: "11m ago",
-    content:
-      "Why do professors upload study material 3 days before exams some of us need more than vibes to pass",
-    likes: 89,
-    replies: 14,
-  },
-  {
-    id: "3",
-    handle: "drift#5512",
-    time: "34m ago",
-    content:
-      "Hot take: open book exams actually test your understanding better than closed book. Fight me.",
-    likes: 41,
-    replies: 22,
-  },
-  {
-    id: "4",
-    handle: "phantom#3398",
-    time: "1h ago",
-    content:
-      "Anyone else realise they have no clue what they want to do after graduation, or is it just me?",
-    likes: 133,
-    replies: 38,
-  },
-];
-
 export default function DashboardClient({ anonHandle, email }: Props) {
   const router = useRouter();
   const [postText, setPostText] = useState("");
   const [posting, setPosting] = useState(false);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [feedError, setFeedError] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
-  const [feed, setFeed] = useState(PLACEHOLDER_POSTS);
+  const [feed, setFeed] = useState<FeedPost[]>([]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  async function fetchPosts() {
+    setLoadingFeed(true);
+    setFeedError("");
+    try {
+      const res = await fetch("/api/posts");
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedError(data.error ?? "Could not load campus feed.");
+        return;
+      }
+      setFeed(data.posts ?? []);
+    } catch {
+      setFeedError("Network error. Please try again.");
+    } finally {
+      setLoadingFeed(false);
+    }
+  }
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -73,22 +69,30 @@ export default function DashboardClient({ anonHandle, email }: Props) {
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
-    if (!postText.trim()) return;
+    const content = postText.trim();
+    if (!content) return;
+
     setPosting(true);
-    await new Promise((r) => setTimeout(r, 600)); // simulate
-    setFeed([
-      {
-        id: String(Date.now()),
-        handle: anonHandle,
-        time: "just now",
-        content: postText.trim(),
-        likes: 0,
-        replies: 0,
-      },
-      ...feed,
-    ]);
-    setPostText("");
-    setPosting(false);
+    setFeedError("");
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedError(data.error ?? "Could not create post.");
+        return;
+      }
+
+      setFeed((current) => [data.post, ...current]);
+      setPostText("");
+    } catch {
+      setFeedError("Network error. Please try again.");
+    } finally {
+      setPosting(false);
+    }
   }
 
   const [word, num] = anonHandle.split("#");
@@ -198,6 +202,15 @@ export default function DashboardClient({ anonHandle, email }: Props) {
           </div>
         </form>
 
+        {feedError && (
+          <div
+            className="text-xs text-error border border-error/20 rounded px-3 py-2 font-code mb-4"
+            style={{ background: "rgba(255,90,90,0.06)" }}
+          >
+            {feedError}
+          </div>
+        )}
+
         <div className="flex items-center gap-3 mb-4 animate-fade-up delay-200">
           <span className="text-xs tracking-[0.25em] uppercase text-muted font-code">
             Campus Feed
@@ -212,9 +225,26 @@ export default function DashboardClient({ anonHandle, email }: Props) {
         </div>
 
         <div className="flex flex-col gap-3">
-          {feed.map((post, i) => (
-            <PostCard key={post.id} post={post} delay={i} />
-          ))}
+          {loadingFeed && (
+            <div
+              className="border border-border rounded-lg p-4 text-xs text-muted font-code"
+              style={{ background: "var(--surface)" }}
+            >
+              Loading campus feed...
+            </div>
+          )}
+
+          {!loadingFeed && feed.length === 0 && (
+            <div
+              className="border border-border rounded-lg p-4 text-xs text-muted font-code"
+              style={{ background: "var(--surface)" }}
+            >
+              No campus posts yet.
+            </div>
+          )}
+
+          {!loadingFeed &&
+            feed.map((post, i) => <PostCard key={post.id} post={post} delay={i} />)}
         </div>
 
         <div className="mt-8 text-center py-8 border border-dashed border-border rounded-lg animate-fade-up">
@@ -228,14 +258,8 @@ export default function DashboardClient({ anonHandle, email }: Props) {
   );
 }
 
-function PostCard({
-  post,
-  delay,
-}: {
-  post: (typeof PLACEHOLDER_POSTS)[number];
-  delay: number;
-}) {
-  const [liked, setLiked] = useState(false);
+function PostCard({ post, delay }: { post: FeedPost; delay: number }) {
+  const [liked, setLiked] = useState(post.liked);
   const [likes, setLikes] = useState(post.likes);
   const [likeLoading, setLikeLoading] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
@@ -246,23 +270,6 @@ function PostCard({
   const [replies, setReplies] = useState<Reply[]>([]);
   const [replyCount, setReplyCount] = useState(post.replies);
   const [word, num] = post.handle.split("#");
-
-  useEffect(() => {
-    fetchReactionState();
-  }, []);
-
-  async function fetchReactionState() {
-    try {
-      const res = await fetch(`/api/posts/${encodeURIComponent(post.id)}/reaction`);
-      const data = await res.json();
-      if (!res.ok) return;
-
-      setLiked(Boolean(data.liked));
-      setLikes(Number(data.likeCount ?? 0));
-    } catch {
-      // Keep the existing placeholder count if the request fails.
-    }
-  }
 
   async function toggleLike() {
     if (likeLoading) return;
@@ -367,10 +374,10 @@ function PostCard({
           </div>
           <span className="text-xs font-code">
             <span className="text-ash">{word}</span>
-            <span className="text-muted">#{num}</span>
+            <span className="text-muted">{num ? `#${num}` : ""}</span>
           </span>
         </div>
-        <span className="text-xs text-muted font-code">{post.time}</span>
+        <span className="text-xs text-muted font-code">{formatPostTime(post.createdAt)}</span>
       </div>
 
       <p className="text-sm text-ash leading-relaxed font-code mb-4">{post.content}</p>
@@ -454,4 +461,18 @@ function PostCard({
       )}
     </article>
   );
+}
+
+function formatPostTime(createdAt: string) {
+  const diffMs = Date.now() - new Date(createdAt).getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }
