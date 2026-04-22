@@ -1,0 +1,78 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: #0D0D1A;
+    --foreground: #F1F0FF;
+    --card: rgba(255,255,255,0.04);
+    --card-foreground: #F1F0FF;
+    --popover: rgba(13,13,26,0.95);
+    --popover-foreground: #F1F0FF;
+    --primary: #7C3AED;
+    --primary-foreground: #F1F0FF;
+    --secondary: rgba(255,255,255,0.06);
+    --secondary-foreground: #A78BFA;
+    --muted: rgba(255,255,255,0.04);
+    --muted-foreground: #6B7280;
+    --accent: #A78BFA;
+    --accent-foreground: #0D0D1A;
+    --destructive: #EF4444;
+    --border: rgba(167,139,250,0.15);
+    --input: rgba(255,255,255,0.05);
+    --ring: rgba(124,58,237,0.4);
+    --radius: 0.75rem;
+  }
+
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: radial-gradient(ellipse at top, #1a0533 0%, #0D0D1A 60%) fixed;
+    color: #F1F0FF;
+    min-height: 100vh;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  ::selection {
+    background-color: #7C3AED;
+    color: #fff;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #7C3AED;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #A78BFA;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #7C3AED transparent;
+  }
+}
